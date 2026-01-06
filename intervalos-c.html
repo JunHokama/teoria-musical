@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Treino de Intervalos em Dó</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; color: white; margin: 0; }
+        #game-container { background: #16213e; padding: 2rem; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); text-align: center; width: 400px; border: 1px solid #0f3460; }
+        .question { font-size: 1.2rem; margin-bottom: 0.5rem; color: #e94560; font-weight: bold; }
+        #target { font-size: 2.5rem; font-weight: bold; margin-bottom: 1.5rem; display: block; color: #fff; }
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button { padding: 15px; border: none; background: #0f3460; color: white; border-radius: 10px; cursor: pointer; font-size: 1rem; transition: all 0.2s; }
+        button:hover { background: #533483; transform: translateY(-2px); }
+        #feedback { margin-top: 1.5rem; height: 20px; font-weight: bold; }
+        .correct { background: #27ae60 !important; }
+        .wrong { background: #c0392b !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="question">Em relação a Dó (C), o que é a nota:</div>
+    <div id="target">--</div>
+    <div class="options" id="options-bin"></div>
+    <div id="feedback"></div>
+</div>
+
+<script>
+    const dados = [
+        { nota: "C", inter: "Tônica (1J)" },
+        { nota: "Db", inter: "Segunda Menor (2m)" },
+        { nota: "D", inter: "Segunda Maior (2M)" },
+        { nota: "Eb", inter: "Terça Menor (3m)" },
+        { nota: "E", inter: "Terça Maior (3M)" },
+        { nota: "F", inter: "Quarta Justa (4J)" },
+        { nota: "Gb/F#", inter: "4ª Aum / 5ª Dim" },
+        { nota: "G", inter: "Quinta Justa (5J)" },
+        { nota: "Ab", inter: "Sexta Menor (6m)" },
+        { nota: "A", inter: "Sexta Maior (6M)" },
+        { nota: "Bb", inter: "Sétima Menor (7m)" },
+        { nota: "B", inter: "Sétima Maior (7M)" }
+    ];
+
+    let perguntaAtual = {};
+
+    function novaPergunta() {
+        document.getElementById('feedback').innerText = "";
+        perguntaAtual = dados[Math.floor(Math.random() * dados.length)];
+        document.getElementById('target').innerText = perguntaAtual.nota;
+        
+        const bin = document.getElementById('options-bin');
+        bin.innerHTML = '';
+        
+        // Criar lista de opções (correta + 3 erradas)
+        let escolhas = [perguntaAtual];
+        while(escolhas.length < 4) {
+            let r = dados[Math.floor(Math.random() * dados.length)];
+            if(!escolhas.find(x => x.inter === r.inter)) escolhas.push(r);
+        }
+        
+        escolhas.sort(() => Math.random() - 0.5);
+
+        escolhas.forEach(item => {
+            const btn = document.createElement('button');
+            btn.innerText = item.inter;
+            btn.onclick = () => checar(item.inter, btn);
+            bin.appendChild(btn);
+        });
+    }
+
+    function checar(resposta, btn) {
+        if(resposta === perguntaAtual.inter) {
+            btn.classList.add('correct');
+            document.getElementById('feedback').innerText = "Boa! Acertou.";
+            setTimeout(novaPergunta, 800);
+        } else {
+            btn.classList.add('wrong');
+            document.getElementById('feedback').innerText = "Ops, tente de novo!";
+            setTimeout(() => btn.classList.remove('wrong'), 500);
+        }
+    }
+
+    novaPergunta();
+</script>
+</body>
+</html>
