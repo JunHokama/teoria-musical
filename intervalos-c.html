@@ -3,181 +3,171 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Treino de Intervalos Mestre</title>
+    <title>Piano Interval Master</title>
     <style>
         :root {
-            --bg: #0f172a;
-            --card: #1e293b;
-            --primary: #38bdf8;
-            --correct: #22c55e;
-            --wrong: #ef4444;
-            --text: #f8fafc;
+            --bg: #1e1e2e;
+            --primary: #f5c2e7;
+            --correct: #a6e3a1;
+            --wrong: #f38ba8;
+            --white-key: #f8f9fa;
+            --black-key: #181825;
         }
 
         body { 
-            font-family: 'Inter', system-ui, sans-serif; 
-            display: flex; justify-content: center; align-items: center; 
-            min-height: 100vh; background: var(--bg); color: var(--text); 
-            margin: 0; touch-action: manipulation;
+            font-family: 'Segoe UI', sans-serif; background: var(--bg); 
+            color: #cdd6f4; margin: 0; display: flex; flex-direction: column; 
+            align-items: center; min-height: 100vh; overflow: hidden;
         }
 
-        #game-container { 
-            background: var(--card); 
-            padding: 1.5rem; border-radius: 24px; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3); 
-            text-align: center; width: 90%; max-width: 450px;
-            border: 1px solid rgba(255,255,255,0.1);
+        .hud {
+            padding: 30px; text-align: center; width: 100%;
+            background: rgba(0,0,0,0.2);
         }
 
-        .header-info { font-size: 0.9rem; opacity: 0.7; margin-bottom: 1rem; }
-
-        .question { font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--primary); }
-
-        #target { 
-            font-size: 3.5rem; font-weight: 800; margin-bottom: 1.5rem; 
-            display: block; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        #instruction { font-size: 1rem; opacity: 0.8; margin-bottom: 5px; }
+        #target-interval { 
+            font-size: 2.8rem; font-weight: 800; color: var(--primary);
+            text-shadow: 0 0 20px rgba(245, 194, 231, 0.3); margin: 10px 0;
         }
 
-        .options { 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; 
+        /* O PIANO */
+        .piano-container {
+            position: relative; height: 250px; margin-top: 50px;
+            display: flex; justify-content: center; padding-bottom: 50px;
         }
 
-        button { 
-            padding: 18px 10px; border: none; background: rgba(255,255,255,0.05); 
-            color: white; border-radius: 12px; cursor: pointer; 
-            font-size: 1rem; font-weight: 600; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid rgba(255,255,255,0.1);
-            -webkit-tap-highlight-color: transparent;
+        .piano { display: flex; position: relative; cursor: pointer; }
+
+        .key {
+            width: 50px; height: 200px; background: var(--white-key);
+            border: 1px solid #ddd; border-radius: 0 0 5px 5px;
+            position: relative; z-index: 1; transition: background 0.1s;
         }
 
-        /* Hover apenas para desktop */
-        @media (min-width: 768px) {
-            button:hover { background: var(--primary); color: #000; transform: translateY(-2px); }
+        .key.black {
+            width: 34px; height: 120px; background: var(--black-key);
+            margin-left: -17px; margin-right: -17px;
+            z-index: 2; border: none;
         }
 
-        #feedback { 
-            margin-top: 1.5rem; min-height: 24px; font-weight: bold; font-size: 1.1rem;
+        /* Feedback */
+        .key.correct-flash { background: var(--correct) !important; transform: translateY(2px); }
+        .key.wrong-flash { background: var(--wrong) !important; animation: shake 0.2s; }
+
+        .ref-mark {
+            position: absolute; bottom: 10px; left: 50%;
+            transform: translateX(-50%); color: #888; font-weight: bold;
+            font-size: 0.8rem; pointer-events: none;
         }
 
-        .correct { background: var(--correct) !important; color: white !important; border-color: var(--correct); }
-        .wrong { background: var(--wrong) !important; color: white !important; border-color: var(--wrong); }
-        
-        .shake { animation: shake 0.4s; }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
+            50% { transform: translateX(5px); }
         }
+
+        .stats { font-size: 1.2rem; font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div class="header-info">Referência: Dó Central (C)</div>
-    <div class="question">Qual o intervalo da nota:</div>
-    <div id="target">--</div>
-    <div class="options" id="options-bin"></div>
-    <div id="feedback"></div>
+<div class="hud">
+    <div id="instruction">Toque a nota que representa o intervalo:</div>
+    <div id="target-interval">Aguardando...</div>
+    <div class="stats">SCORE: <span id="score">0</span></div>
+</div>
+
+<div class="piano-container">
+    <div class="piano" id="piano">
+        </div>
+</div>
+
+<div style="margin-top: 20px; opacity: 0.6; text-align: center; padding: 20px;">
+    DICA: A primeira tecla branca à esquerda é o <b>Dó (C)</b>.<br>
+    Conte cada tecla (branca e preta) como um semitom.
 </div>
 
 <script>
-    // Banco de dados expandido com distinção técnica de enarmonia
-    const dados = [
-        { nota: "C", inter: "Tônica (1J)" },
-        { nota: "Db", inter: "2ª Menor (2m)" },
-        { nota: "C#", inter: "2ª Menor (2m)" }, // Enarmonia comum
-        { nota: "D", inter: "2ª Maior (2M)" },
-        { nota: "Eb", inter: "3ª Menor (3m)" },
-        { nota: "D#", inter: "2ª Aumentada (2#)" }, // Distinção técnica
-        { nota: "E", inter: "3ª Maior (3M)" },
-        { nota: "Fb", inter: "3ª Maior (3M)" }, // Teórico
-        { nota: "F", inter: "4ª Justa (4J)" },
-        { nota: "F#", inter: "4ª Aumentada (4#)" }, // Diferente de 5dim
-        { nota: "Gb", inter: "5ª Diminuta (5b)" },   // Diferente de 4aum
-        { nota: "G", inter: "Quinta Justa (5J)" },
-        { nota: "Ab", inter: "6ª Menor (6m)" },
-        { nota: "G#", inter: "5ª Aumentada (5#)" }, // Distinção técnica
-        { nota: "A", inter: "6ª Maior (6M)" },
-        { nota: "Bb", inter: "7ª Menor (7m)" },
-        { nota: "A#", inter: "6ª Aumentada (6#)" },
-        { nota: "B", inter: "7ª Maior (7M)" },
-        { nota: "Cb", inter: "7ª Maior (7M)" }
+    const intervals = [
+        { name: "Tônica (C)", semitones: 0 },
+        { name: "2ª Menor", semitones: 1 },
+        { name: "2ª Maior", semitones: 2 },
+        { name: "3ª Menor", semitones: 3 },
+        { name: "3ª Maior", semitones: 4 },
+        { name: "4ª Justa", semitones: 5 },
+        { name: "4ª Aumentada", semitones: 6 },
+        { name: "5ª Justa", semitones: 7 },
+        { name: "6ª Menor", semitones: 8 },
+        { name: "6ª Maior", semitones: 9 },
+        { name: "7ª Menor", semitones: 10 },
+        { name: "7ª Maior", semitones: 11 },
+        { name: "Oitava", semitones: 12 }
     ];
 
-    let perguntaAtual = {};
-    let perguntasRestantes = [];
+    let currentInterval = {};
+    let score = 0;
+    let canPlay = true;
 
-    function embaralhar(array) {
-        return array.sort(() => Math.random() - 0.5);
-    }
+    function createPiano() {
+        const piano = document.getElementById('piano');
+        // Padrão de teclas pretas (1 = tem preta depois, 0 = não tem)
+        const pattern = [1, 1, 0, 1, 1, 1, 0, 1]; 
+        let currentSemitone = 0;
 
-    function novaPergunta() {
-        const feedbackEl = document.getElementById('feedback');
-        feedbackEl.innerText = "";
-        feedbackEl.className = "";
-
-        // Lógica de não repetir até acabar a lista
-        if (perguntasRestantes.length === 0) {
-            perguntasRestantes = embaralhar([...dados]);
-        }
-
-        perguntaAtual = perguntasRestantes.pop();
-        document.getElementById('target').innerText = perguntaAtual.nota;
-        
-        const bin = document.getElementById('options-bin');
-        bin.innerHTML = '';
-        
-        // Garante que a correta está no mix e pega 3 erradas
-        let opcoes = [perguntaAtual];
-        let outros = dados.filter(d => d.inter !== perguntaAtual.inter);
-        embaralhar(outros);
-        
-        // Pega 3 intervalos ÚNICOS e diferentes do correto
-        let selecionados = new Set();
-        selecionados.add(perguntaAtual.inter);
-        
-        for (let item of outros) {
-            if (selecionados.size < 4 && !selecionados.has(item.inter)) {
-                selecionados.add(item.inter);
-                opcoes.push(item);
+        for (let i = 0; i < 8; i++) {
+            // Tecla Branca
+            addKey(piano, false, currentSemitone++);
+            
+            // Tecla Preta (se o padrão permitir e não passar da oitava)
+            if (pattern[i] && currentSemitone <= 12) {
+                addKey(piano, true, currentSemitone++);
             }
         }
+    }
+
+    function addKey(container, isBlack, semitone) {
+        const key = document.createElement('div');
+        key.className = `key ${isBlack ? 'black' : 'white'}`;
+        key.dataset.semi = semitone;
+
+        if (semitone === 0) {
+            key.innerHTML = '<span class="ref-mark">C</span>';
+        }
+
+        key.onclick = () => checkAnswer(semitone, key);
+        container.appendChild(key);
+    }
+
+    function nextQuestion() {
+        canPlay = true;
+        currentInterval = intervals[Math.floor(Math.random() * intervals.length)];
+        document.getElementById('target-interval').innerText = currentInterval.name;
         
-        embaralhar(opcoes).forEach(item => {
-            const btn = document.createElement('button');
-            btn.innerText = item.inter;
-            btn.onclick = (e) => checar(item.inter, e.target);
-            bin.appendChild(btn);
+        document.querySelectorAll('.key').forEach(k => {
+            k.classList.remove('correct-flash', 'wrong-flash');
         });
     }
 
-    function checar(resposta, btn) {
-        const feedbackEl = document.getElementById('feedback');
-        
-        if(resposta === perguntaAtual.inter) {
-            // Desabilita botões para evitar múltiplos cliques
-            const botoes = document.querySelectorAll('button');
-            botoes.forEach(b => b.style.pointerEvents = 'none');
-            
-            btn.classList.add('correct');
-            feedbackEl.innerText = "Excelente!";
-            feedbackEl.style.color = "var(--correct)";
-            
-            setTimeout(() => {
-                novaPergunta();
-            }, 800);
+    function checkAnswer(clickedSemi, element) {
+        if (!canPlay) return;
+
+        if (clickedSemi === currentInterval.semitones) {
+            canPlay = false;
+            score += 10;
+            element.classList.add('correct-flash');
+            document.getElementById('score').innerText = score;
+            setTimeout(nextQuestion, 600);
         } else {
-            btn.classList.add('wrong', 'shake');
-            feedbackEl.innerText = "Tente outra vez";
-            feedbackEl.style.color = "var(--wrong)";
-            
-            setTimeout(() => {
-                btn.classList.remove('wrong', 'shake');
-            }, 400);
+            element.classList.add('wrong-flash');
+            setTimeout(() => element.classList.remove('wrong-flash'), 300);
+            score = Math.max(0, score - 5);
+            document.getElementById('score').innerText = score;
         }
     }
 
-    novaPergunta();
+    createPiano();
+    nextQuestion();
 </script>
+
 </body>
 </html>
