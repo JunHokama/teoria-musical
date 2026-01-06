@@ -2,81 +2,178 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Treino de Intervalos em Dó</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Treino de Intervalos Mestre</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; color: white; margin: 0; }
-        #game-container { background: #16213e; padding: 2rem; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.5); text-align: center; width: 400px; border: 1px solid #0f3460; }
-        .question { font-size: 1.2rem; margin-bottom: 0.5rem; color: #e94560; font-weight: bold; }
-        #target { font-size: 2.5rem; font-weight: bold; margin-bottom: 1.5rem; display: block; color: #fff; }
-        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        button { padding: 15px; border: none; background: #0f3460; color: white; border-radius: 10px; cursor: pointer; font-size: 1rem; transition: all 0.2s; }
-        button:hover { background: #533483; transform: translateY(-2px); }
-        #feedback { margin-top: 1.5rem; height: 20px; font-weight: bold; }
-        .correct { background: #27ae60 !important; }
-        .wrong { background: #c0392b !important; }
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --primary: #38bdf8;
+            --correct: #22c55e;
+            --wrong: #ef4444;
+            --text: #f8fafc;
+        }
+
+        body { 
+            font-family: 'Inter', system-ui, sans-serif; 
+            display: flex; justify-content: center; align-items: center; 
+            min-height: 100vh; background: var(--bg); color: var(--text); 
+            margin: 0; touch-action: manipulation;
+        }
+
+        #game-container { 
+            background: var(--card); 
+            padding: 1.5rem; border-radius: 24px; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3); 
+            text-align: center; width: 90%; max-width: 450px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .header-info { font-size: 0.9rem; opacity: 0.7; margin-bottom: 1rem; }
+
+        .question { font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--primary); }
+
+        #target { 
+            font-size: 3.5rem; font-weight: 800; margin-bottom: 1.5rem; 
+            display: block; color: #fff; text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .options { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; 
+        }
+
+        button { 
+            padding: 18px 10px; border: none; background: rgba(255,255,255,0.05); 
+            color: white; border-radius: 12px; cursor: pointer; 
+            font-size: 1rem; font-weight: 600; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255,255,255,0.1);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Hover apenas para desktop */
+        @media (min-width: 768px) {
+            button:hover { background: var(--primary); color: #000; transform: translateY(-2px); }
+        }
+
+        #feedback { 
+            margin-top: 1.5rem; min-height: 24px; font-weight: bold; font-size: 1.1rem;
+        }
+
+        .correct { background: var(--correct) !important; color: white !important; border-color: var(--correct); }
+        .wrong { background: var(--wrong) !important; color: white !important; border-color: var(--wrong); }
+        
+        .shake { animation: shake 0.4s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div class="question">Em relação a Dó (C), o que é a nota:</div>
+    <div class="header-info">Referência: Dó Central (C)</div>
+    <div class="question">Qual o intervalo da nota:</div>
     <div id="target">--</div>
     <div class="options" id="options-bin"></div>
     <div id="feedback"></div>
 </div>
 
 <script>
+    // Banco de dados expandido com distinção técnica de enarmonia
     const dados = [
         { nota: "C", inter: "Tônica (1J)" },
-        { nota: "Db", inter: "Segunda Menor (2m)" },
-        { nota: "D", inter: "Segunda Maior (2M)" },
-        { nota: "Eb", inter: "Terça Menor (3m)" },
-        { nota: "E", inter: "Terça Maior (3M)" },
-        { nota: "F", inter: "Quarta Justa (4J)" },
-        { nota: "Gb/F#", inter: "4ª Aum / 5ª Dim" },
+        { nota: "Db", inter: "2ª Menor (2m)" },
+        { nota: "C#", inter: "2ª Menor (2m)" }, // Enarmonia comum
+        { nota: "D", inter: "2ª Maior (2M)" },
+        { nota: "Eb", inter: "3ª Menor (3m)" },
+        { nota: "D#", inter: "2ª Aumentada (2#)" }, // Distinção técnica
+        { nota: "E", inter: "3ª Maior (3M)" },
+        { nota: "Fb", inter: "3ª Maior (3M)" }, // Teórico
+        { nota: "F", inter: "4ª Justa (4J)" },
+        { nota: "F#", inter: "4ª Aumentada (4#)" }, // Diferente de 5dim
+        { nota: "Gb", inter: "5ª Diminuta (5b)" },   // Diferente de 4aum
         { nota: "G", inter: "Quinta Justa (5J)" },
-        { nota: "Ab", inter: "Sexta Menor (6m)" },
-        { nota: "A", inter: "Sexta Maior (6M)" },
-        { nota: "Bb", inter: "Sétima Menor (7m)" },
-        { nota: "B", inter: "Sétima Maior (7M)" }
+        { nota: "Ab", inter: "6ª Menor (6m)" },
+        { nota: "G#", inter: "5ª Aumentada (5#)" }, // Distinção técnica
+        { nota: "A", inter: "6ª Maior (6M)" },
+        { nota: "Bb", inter: "7ª Menor (7m)" },
+        { nota: "A#", inter: "6ª Aumentada (6#)" },
+        { nota: "B", inter: "7ª Maior (7M)" },
+        { nota: "Cb", inter: "7ª Maior (7M)" }
     ];
 
     let perguntaAtual = {};
+    let perguntasRestantes = [];
+
+    function embaralhar(array) {
+        return array.sort(() => Math.random() - 0.5);
+    }
 
     function novaPergunta() {
-        document.getElementById('feedback').innerText = "";
-        perguntaAtual = dados[Math.floor(Math.random() * dados.length)];
+        const feedbackEl = document.getElementById('feedback');
+        feedbackEl.innerText = "";
+        feedbackEl.className = "";
+
+        // Lógica de não repetir até acabar a lista
+        if (perguntasRestantes.length === 0) {
+            perguntasRestantes = embaralhar([...dados]);
+        }
+
+        perguntaAtual = perguntasRestantes.pop();
         document.getElementById('target').innerText = perguntaAtual.nota;
         
         const bin = document.getElementById('options-bin');
         bin.innerHTML = '';
         
-        // Criar lista de opções (correta + 3 erradas)
-        let escolhas = [perguntaAtual];
-        while(escolhas.length < 4) {
-            let r = dados[Math.floor(Math.random() * dados.length)];
-            if(!escolhas.find(x => x.inter === r.inter)) escolhas.push(r);
+        // Garante que a correta está no mix e pega 3 erradas
+        let opcoes = [perguntaAtual];
+        let outros = dados.filter(d => d.inter !== perguntaAtual.inter);
+        embaralhar(outros);
+        
+        // Pega 3 intervalos ÚNICOS e diferentes do correto
+        let selecionados = new Set();
+        selecionados.add(perguntaAtual.inter);
+        
+        for (let item of outros) {
+            if (selecionados.size < 4 && !selecionados.has(item.inter)) {
+                selecionados.add(item.inter);
+                opcoes.push(item);
+            }
         }
         
-        escolhas.sort(() => Math.random() - 0.5);
-
-        escolhas.forEach(item => {
+        embaralhar(opcoes).forEach(item => {
             const btn = document.createElement('button');
             btn.innerText = item.inter;
-            btn.onclick = () => checar(item.inter, btn);
+            btn.onclick = (e) => checar(item.inter, e.target);
             bin.appendChild(btn);
         });
     }
 
     function checar(resposta, btn) {
+        const feedbackEl = document.getElementById('feedback');
+        
         if(resposta === perguntaAtual.inter) {
+            // Desabilita botões para evitar múltiplos cliques
+            const botoes = document.querySelectorAll('button');
+            botoes.forEach(b => b.style.pointerEvents = 'none');
+            
             btn.classList.add('correct');
-            document.getElementById('feedback').innerText = "Boa! Acertou.";
-            setTimeout(novaPergunta, 800);
+            feedbackEl.innerText = "Excelente!";
+            feedbackEl.style.color = "var(--correct)";
+            
+            setTimeout(() => {
+                novaPergunta();
+            }, 800);
         } else {
-            btn.classList.add('wrong');
-            document.getElementById('feedback').innerText = "Ops, tente de novo!";
-            setTimeout(() => btn.classList.remove('wrong'), 500);
+            btn.classList.add('wrong', 'shake');
+            feedbackEl.innerText = "Tente outra vez";
+            feedbackEl.style.color = "var(--wrong)";
+            
+            setTimeout(() => {
+                btn.classList.remove('wrong', 'shake');
+            }, 400);
         }
     }
 
