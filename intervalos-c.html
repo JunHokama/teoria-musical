@@ -31,7 +31,6 @@
             text-shadow: 0 0 20px rgba(245, 194, 231, 0.3); margin: 10px 0;
         }
 
-        /* O PIANO */
         .piano-container {
             position: relative; height: 250px; margin-top: 50px;
             display: flex; justify-content: center; padding-bottom: 50px;
@@ -43,6 +42,7 @@
             width: 50px; height: 200px; background: var(--white-key);
             border: 1px solid #ddd; border-radius: 0 0 5px 5px;
             position: relative; z-index: 1; transition: background 0.1s;
+            user-select: none;
         }
 
         .key.black {
@@ -51,7 +51,6 @@
             z-index: 2; border: none;
         }
 
-        /* Feedback */
         .key.correct-flash { background: var(--correct) !important; transform: translateY(2px); }
         .key.wrong-flash { background: var(--wrong) !important; animation: shake 0.2s; }
 
@@ -78,33 +77,56 @@
 </div>
 
 <div class="piano-container">
-    <div class="piano" id="piano">
-        </div>
+    <div class="piano" id="piano"></div>
 </div>
 
 <div style="margin-top: 20px; opacity: 0.6; text-align: center; padding: 20px;">
     DICA: A primeira tecla branca à esquerda é o <b>Dó (C)</b>.<br>
-    Conte cada tecla (branca e preta) como um semitom.
+    Clique nas teclas para ouvir e responder.
 </div>
 
 <script>
-    // Lista completa com enarmônicos separados
-    // Cada objeto é uma pergunta única, mesmo que o 'semi' seja igual
+    // Inicialização do Áudio (Contexto criado no primeiro clique)
+    let audioCtx = null;
+
+    function playNote(semitones) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        // Frequência de Dó3
+        const baseFreq = 261.63;
+        const frequency = baseFreq * Math.pow(2, semitones / 12);
+
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+        gainNode.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.6);
+    }
+
     const allIntervals = [
         { name: "Tônica (C)", semi: 0 },
         { name: "2ª Menor", semi: 1 },
         { name: "2ª Maior", semi: 2 },
         { name: "3ª Menor", semi: 3 },
-        { name: "2ª Aumentada", semi: 3 }, // Enarmônico
+        { name: "2ª Aumentada", semi: 3 },
         { name: "3ª Maior", semi: 4 },
         { name: "4ª Justa", semi: 5 },
-        { name: "4ª Aumentada", semi: 6 }, // Separado
-        { name: "5ª Diminuta", semi: 6 },  // Separado
+        { name: "4ª Aumentada", semi: 6 },
+        { name: "5ª Diminuta", semi: 6 },
         { name: "5ª Justa", semi: 7 },
         { name: "6ª Menor", semi: 8 },
-        { name: "5ª Aumentada", semi: 8 }, // Enarmônico
+        { name: "5ª Aumentada", semi: 8 },
         { name: "6ª Maior", semi: 9 },
-        { name: "7ª Diminuta", semi: 9 },  // Enarmônico
+        { name: "7ª Diminuta", semi: 9 },
         { name: "7ª Menor", semi: 10 },
         { name: "7ª Maior", semi: 11 },
         { name: "Oitava", semi: 12 }
@@ -115,14 +137,12 @@
     let score = 0;
     let canPlay = true;
 
-    // Algoritmo Fisher-Yates para embaralhar perfeitamente
     function shuffle(array) {
         let currentIndex = array.length;
         while (currentIndex != 0) {
             let randomIndex = Math.floor(Math.random() * currentIndex);
             currentIndex--;
-            [array[currentIndex], array[randomIndex]] = [
-                array[randomIndex], array[currentIndex]];
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
         }
         return array;
     }
@@ -148,15 +168,13 @@
         if (semitone === 0 || semitone === 12) {
             key.innerHTML = '<span class="ref-mark">C</span>';
         }
-        key.onclick = () => checkAnswer(semitone, key);
+        key.onmousedown = () => checkAnswer(semitone, key); // Usando mousedown para resposta mais rápida
         container.appendChild(key);
     }
 
     function nextQuestion() {
-        // Se a "pilha" esvaziar, criamos uma nova sequência embaralhada de TODOS os itens
         if (questionPool.length === 0) {
             questionPool = shuffle([...allIntervals]);
-            console.log("Baralho embaralhado!");
         }
 
         canPlay = true;
@@ -169,6 +187,9 @@
     }
 
     function checkAnswer(clickedSemi, element) {
+        // Toca o som independente de ser a vez de responder ou não (permite "explorar" o piano)
+        playNote(clickedSemi);
+
         if (!canPlay) return;
 
         if (clickedSemi === currentInterval.semi) {
@@ -176,7 +197,7 @@
             score += 10;
             element.classList.add('correct-flash');
             document.getElementById('score').innerText = score;
-            setTimeout(nextQuestion, 600);
+            setTimeout(nextQuestion, 800);
         } else {
             element.classList.add('wrong-flash');
             setTimeout(() => element.classList.remove('wrong-flash'), 300);
