@@ -88,39 +88,55 @@
 </div>
 
 <script>
-    const intervals = [
-        { name: "Tônica (C)", semitones: 0 },
-        { name: "2ª Menor", semitones: 1 },
-        { name: "2ª Maior", semitones: 2 },
-        { name: "3ª Menor", semitones: 3 },
-        { name: "3ª Maior", semitones: 4 },
-        { name: "4ª Justa", semitones: 5 },
-        { name: "4ª Aumentada", semitones: 6 },
-        { name: "5ª Justa", semitones: 7 },
-        { name: "6ª Menor", semitones: 8 },
-        { name: "6ª Maior", semitones: 9 },
-        { name: "7ª Menor", semitones: 10 },
-        { name: "7ª Maior", semitones: 11 },
-        { name: "Oitava", semitones: 12 }
+    // Lista completa com enarmônicos separados
+    // Cada objeto é uma pergunta única, mesmo que o 'semi' seja igual
+    const allIntervals = [
+        { name: "Tônica (C)", semi: 0 },
+        { name: "2ª Menor", semi: 1 },
+        { name: "2ª Maior", semi: 2 },
+        { name: "3ª Menor", semi: 3 },
+        { name: "2ª Aumentada", semi: 3 }, // Enarmônico
+        { name: "3ª Maior", semi: 4 },
+        { name: "4ª Justa", semi: 5 },
+        { name: "4ª Aumentada", semi: 6 }, // Separado
+        { name: "5ª Diminuta", semi: 6 },  // Separado
+        { name: "5ª Justa", semi: 7 },
+        { name: "6ª Menor", semi: 8 },
+        { name: "5ª Aumentada", semi: 8 }, // Enarmônico
+        { name: "6ª Maior", semi: 9 },
+        { name: "7ª Diminuta", semi: 9 },  // Enarmônico
+        { name: "7ª Menor", semi: 10 },
+        { name: "7ª Maior", semi: 11 },
+        { name: "Oitava", semi: 12 }
     ];
 
+    let questionPool = []; 
     let currentInterval = {};
     let score = 0;
     let canPlay = true;
 
+    // Algoritmo Fisher-Yates para embaralhar perfeitamente
+    function shuffle(array) {
+        let currentIndex = array.length;
+        while (currentIndex != 0) {
+            let randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [
+                array[randomIndex], array[currentIndex]];
+        }
+        return array;
+    }
+
     function createPiano() {
         const piano = document.getElementById('piano');
-        // Padrão de teclas pretas (1 = tem preta depois, 0 = não tem)
-        const pattern = [1, 1, 0, 1, 1, 1, 0, 1]; 
-        let currentSemitone = 0;
+        piano.innerHTML = '';
+        const pattern = [1, 1, 0, 1, 1, 1, 0]; 
+        let semi = 0;
 
         for (let i = 0; i < 8; i++) {
-            // Tecla Branca
-            addKey(piano, false, currentSemitone++);
-            
-            // Tecla Preta (se o padrão permitir e não passar da oitava)
-            if (pattern[i] && currentSemitone <= 12) {
-                addKey(piano, true, currentSemitone++);
+            addKey(piano, false, semi++); 
+            if (pattern[i] && semi < 13) {
+                addKey(piano, true, semi++); 
             }
         }
     }
@@ -129,18 +145,22 @@
         const key = document.createElement('div');
         key.className = `key ${isBlack ? 'black' : 'white'}`;
         key.dataset.semi = semitone;
-
-        if (semitone === 0) {
+        if (semitone === 0 || semitone === 12) {
             key.innerHTML = '<span class="ref-mark">C</span>';
         }
-
         key.onclick = () => checkAnswer(semitone, key);
         container.appendChild(key);
     }
 
     function nextQuestion() {
+        // Se a "pilha" esvaziar, criamos uma nova sequência embaralhada de TODOS os itens
+        if (questionPool.length === 0) {
+            questionPool = shuffle([...allIntervals]);
+            console.log("Baralho embaralhado!");
+        }
+
         canPlay = true;
-        currentInterval = intervals[Math.floor(Math.random() * intervals.length)];
+        currentInterval = questionPool.pop(); 
         document.getElementById('target-interval').innerText = currentInterval.name;
         
         document.querySelectorAll('.key').forEach(k => {
@@ -151,7 +171,7 @@
     function checkAnswer(clickedSemi, element) {
         if (!canPlay) return;
 
-        if (clickedSemi === currentInterval.semitones) {
+        if (clickedSemi === currentInterval.semi) {
             canPlay = false;
             score += 10;
             element.classList.add('correct-flash');
