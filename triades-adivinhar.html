@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz de Arpejos</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --primary: #e67e22;
+            --secondary: #89b4fa;
+            --correct: #a6e3a1;
+            --wrong: #f38ba8;
+            --card: #313244;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; background: var(--bg); 
+            color: #cdd6f4; margin: 0; display: flex; flex-direction: column; 
+            align-items: center; min-height: 100vh; padding: 20px;
+        }
+
+        .hud { text-align: center; margin-bottom: 20px; }
+        #score-display { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+
+        .quiz-container {
+            background: var(--card); padding: 30px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 100%; max-width: 450px;
+            text-align: center; border-top: 8px solid var(--primary);
+        }
+
+        .play-btn {
+            background: var(--primary); border: none; border-radius: 50%;
+            width: 90px; height: 90px; cursor: pointer; margin-bottom: 15px;
+            transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(230, 126, 34, 0.4);
+        }
+        .play-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .play-btn svg { fill: white; width: 45px; height: 45px; }
+
+        .options-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 25px;
+        }
+
+        .option {
+            background: #45475a; border: none; color: white;
+            padding: 18px 10px; border-radius: 12px; font-size: 1.3rem; font-weight: 800;
+            cursor: pointer; transition: all 0.2s;
+        }
+
+        .option:hover { background: #585b70; transform: translateY(-2px); }
+        .option.correct { background: var(--correct) !important; color: #111; }
+        .option.wrong { background: var(--wrong) !important; }
+
+        #feedback { height: 30px; margin-top: 20px; font-size: 1.2rem; font-weight: bold; }
+        
+        .btn-next {
+            background: var(--secondary); border: none; padding: 12px 30px;
+            border-radius: 8px; color: #111; font-weight: bold; cursor: pointer;
+            margin-top: 20px; display: none; font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="hud">
+    <div id="score-display">PONTOS: 0</div>
+</div>
+
+<div class="quiz-container">
+    <div style="margin-bottom: 15px; opacity: 0.8;">Qual é o acorde arpejado?</div>
+    
+    <button class="play-btn" onclick="playArpeggio()" title="Ouvir Arpejo">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    
+    <div style="font-size: 0.8rem; letter-spacing: 1px;">OUVIR NOVAMENTE</div>
+
+    <div class="options-grid" id="options"></div>
+    
+    <div id="feedback"></div>
+    <button id="next-btn" class="btn-next" onclick="nextQuestion()">PRÓXIMO ACORDE</button>
+</div>
+
+<script>
+    let audioCtx = null;
+    let score = 0;
+    let currentChord = null;
+    let canAnswer = true;
+
+    const tonics = [
+        { name: "C", base: 0 },
+        { name: "D", base: 2 },
+        { name: "G", base: 7 }
+    ];
+
+    const types = [
+        { label: "", intervals: [0, 4, 7] },    // Maior
+        { label: "m", intervals: [0, 3, 7] },   // Menor
+        { label: "°", intervals: [0, 3, 6] },   // Diminuta
+        { label: "aug", intervals: [0, 4, 8] } // Aumentada
+    ];
+
+    function playNote(semitones, startTime, duration = 0.8) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        
+        osc.frequency.setValueAtTime(261.63 * Math.pow(2, semitones / 12), startTime);
+        osc.type = 'triangle';
+        
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.25, startTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+    }
+
+    function playArpeggio() {
+        if (!currentChord) return;
+        const now = audioCtx ? audioCtx.currentTime : 0;
+        const tempo = 0.4; // Velocidade entre notas
+
+        // 1. Toca as notas individualmente (Arpejo)
+        currentChord.notes.forEach((semi, i) => {
+            playNote(semi, now + (i * tempo), 0.7);
+        });
+
+        // 2. Toca o acorde cheio no final para confirmar a sonoridade
+        const chordStart = now + (currentChord.notes.length * tempo) + 0.2;
+        currentChord.notes.forEach((semi) => {
+            playNote(semi, chordStart, 1.5);
+        });
+    }
+
+    function generateOptions() {
+        const optionsContainer = document.getElementById('options');
+        optionsContainer.innerHTML = '';
+        
+        // Criamos um pool de 4 opções baseado na tônica atual para focar no tipo de tríade
+        // ou misturado como antes. Vamos manter misturado entre C, D e G para ser desafiador.
+        let choices = [currentChord.cipher];
+        
+        let allCiphers = [];
+        tonics.forEach(t => types.forEach(ty => allCiphers.push(t.name + ty.label)));
+
+        while(choices.length < 4) {
+            let rand = allCiphers[Math.floor(Math.random() * allCiphers.length)];
+            if(!choices.includes(rand)) choices.push(rand);
+        }
+        
+        choices.sort(() => Math.random() - 0.5);
+
+        choices.forEach(choice => {
+            const btn = document.createElement('button');
+            btn.className = 'option';
+            btn.innerText = choice;
+            btn.onclick = () => checkAnswer(choice, btn);
+            optionsContainer.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(choice, btn) {
+        if (!canAnswer) return;
+        canAnswer = false;
+
+        const allBtns = document.querySelectorAll('.option');
+        if (choice === currentChord.cipher) {
+            score += 10;
+            btn.classList.add('correct');
+            document.getElementById('feedback').innerText = "Excelente! ✔";
+            document.getElementById('feedback').style.color = "var(--correct)";
+        } else {
+            score = Math.max(0, score - 5);
+            btn.classList.add('wrong');
+            document.getElementById('feedback').innerText = `Resposta: ${currentChord.cipher}`;
+            document.getElementById('feedback').style.color = "var(--wrong)";
+            
+            allBtns.forEach(b => {
+                if(b.innerText === currentChord.cipher) b.classList.add('correct');
+            });
+        }
+
+        document.getElementById('score-display').innerText = `PONTOS: ${score}`;
+        document.getElementById('next-btn').style.display = 'inline-block';
+    }
+
+    function nextQuestion() {
+        canAnswer = true;
+        document.getElementById('feedback').innerText = "";
+        document.getElementById('next-btn').style.display = 'none';
+        
+        const tonic = tonics[Math.floor(Math.random() * tonics.length)];
+        const type = types[Math.floor(Math.random() * types.length)];
+        
+        currentChord = {
+            cipher: tonic.name + type.label,
+            notes: type.intervals.map(v => v + tonic.base)
+        };
+
+        generateOptions();
+        playArpeggio();
+    }
+
+    // Primeira interação
+    window.addEventListener('click', () => {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            nextQuestion();
+        }
+    }, { once: true });
+
+</script>
+
+</body>
+</html>
