@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Jazz Cat Chart Generator</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Merriweather:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root {
+            --bg-floor: #1a1a1a; /* Chão do palco escuro */
+            --paper-color: #fffbf0; /* Papel levemente creme (Real Book antigo) */
+            --ink-color: #1a1a1a;
+            --accent-color: #d94e4e; /* Vermelho para anotações/botões */
+            --font-hand: 'Patrick Hand', cursive;
+            --font-title: 'Merriweather', serif;
+        }
+
+        body {
+            font-family: var(--font-hand);
+            background-color: var(--bg-floor);
+            color: #ccc;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- UI DE CONTROLE (Não sai no PDF) --- */
+        .control-panel {
+            background: #2b2b2b;
+            padding: 25px;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-bottom: 40px;
+            border: 1px solid #444;
+        }
+
+        .control-panel h2 {
+            font-family: var(--font-title);
+            color: #fff;
+            margin-top: 0;
+            font-style: italic;
+            border-bottom: 1px solid #555;
+            padding-bottom: 10px;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        input, textarea {
+            background: #1a1a1a;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 10px;
+            font-family: var(--font-hand);
+            font-size: 18px;
+            border-radius: 2px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: #666;
+        }
+
+        textarea {
+            height: 120px;
+            font-size: 22px; /* Maior para ler fácil */
+            grid-column: span 3;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-family: var(--font-title);
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 2px;
+            transition: all 0.2s;
+        }
+
+        .btn-update {
+            background-color: #eee;
+            color: #000;
+        }
+
+        .btn-pdf {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+
+        /* --- O PAPER (SHEET MUSIC) --- */
+        #chart-container {
+            background-color: var(--paper-color);
+            color: var(--ink-color);
+            width: 210mm; /* Largura A4 */
+            min-height: 297mm; /* Altura A4 */
+            padding: 20mm;
+            box-sizing: border-box;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Cabeçalho do Chart */
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 2px solid var(--ink-color);
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+
+        .song-title {
+            font-family: var(--font-title);
+            font-size: 36px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .meta-info {
+            text-align: right;
+            font-size: 20px;
+        }
+
+        .composer {
+            font-weight: bold;
+            display: block;
+        }
+
+        .style-tempo {
+            font-size: 16px;
+            font-style: italic;
+        }
+
+        /* Sistemas e Compassos */
+        .system {
+            display: flex;
+            width: 100%;
+            margin-bottom: 45px; /* Espaço generoso entre linhas */
+            height: 60px; /* Altura fixa para alinhar */
+        }
+
+        .measure {
+            flex: 1;
+            border-right: 2px solid var(--ink-color); /* Traço grosso estilo caneta */
+            padding: 0 10px;
+            display: flex;
+            align-items: center; /* Centraliza verticalmente */
+            justify-content: space-around;
+            position: relative;
+        }
+
+        .measure:first-child {
+            border-left: 2px solid var(--ink-color);
+        }
+
+        /* Tipografia dos Acordes */
+        .chord {
+            font-size: 38px;
+            line-height: 1;
+            position: relative;
+            transform: translateY(-5px); /* Ajuste visual ótico */
+        }
+
+        /* A lógica da "teoria avançada" */
+        .root {
+            letter-spacing: -1px;
+        }
+
+        .suffix {
+            font-size: 0.55em;
+            position: absolute;
+            top: -12px;
+            right: -100%; /* Joga pra direita da tônica */
+            margin-left: 2px;
+            white-space: nowrap; /* Não quebra linha */
+        }
+
+        .bass {
+            font-size: 0.55em;
+            position: relative;
+            top: 10px;
+        }
+        .bass::before { content: '/'; margin: 0 2px; font-size: 1.2em;}
+
+        /* Copyright footer */
+        .copyright {
+            position: absolute;
+            bottom: 10mm;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.6;
+            left: 0;
+        }
+
+        /* Estilo específico para PDF (remove sombras) */
+        @media print {
+            body { background: none; }
+            .control-panel { display: none; }
+            #chart-container { box-shadow: none; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="control-panel">
+        <h2>🎹 The Real Chart Generator</h2>
+        
+        <div class="input-group">
+            <input type="text" id="inTitle" placeholder="Título da Música" value="Autumn Leaves">
+            <input type="text" id="inComposer" placeholder="Compositor" value="Joseph Kosma">
+            <input type="text" id="inStyle" placeholder="Estilo (ex: Med. Swing)" value="Medium Swing">
+        </div>
+
+        <textarea id="inChords">| Am7 | D7 | Gmaj7 | Cmaj7 | 
+| F#m7b5 | B7b9 | Em7 | Em7 |</textarea>
+
+        <div class="btn-group">
+            <button class="btn-update" onclick="renderChart()">Atualizar Preview</button>
+            <button class="btn-pdf" onclick="generatePDF()">🖨️ Baixar PDF (A4)</button>
+        </div>
+        <p style="font-size: 14px; color: #888; margin-top: 10px; font-style: italic;">
+            Dica Pro: Use "b" para bemol, "M" ou "maj" para maior. O sistema converte automaticamente para notação de Jazz (Δ, ø, etc).
+        </p>
+    </div>
+
+    <div id="chart-container">
+        <header class="chart-header">
+            <div class="song-title" id="outTitle">TITLE</div>
+            <div class="meta-info">
+                <span class="composer" id="outComposer">Composer</span>
+                <span class="style-tempo" id="outStyle">Style</span>
+            </div>
+        </header>
+
+        <div id="staff-content">
+            </div>
+
+        <div class="copyright">
+            Transcribed for Educational Purposes • Generated by The Jazz Cat
+        </div>
+    </div>
+
+    <script>
+        function renderChart() {
+            // Pegar valores
+            const title = document.getElementById('inTitle').value;
+            const composer = document.getElementById('inComposer').value;
+            const style = document.getElementById('inStyle').value;
+            const rawChords = document.getElementById('inChords').value;
+
+            // Atualizar Header
+            document.getElementById('outTitle').innerText = title;
+            document.getElementById('outComposer').innerText = composer;
+            document.getElementById('outStyle').innerText = style;
+
+            // Limpar Pauta
+            const staff = document.getElementById('staff-content');
+            staff.innerHTML = '';
+
+            // Processar acordes
+            let measures = rawChords.split('|').map(m => m.trim()).filter(m => m.length > 0);
+            
+            // Layout Grid (4 compassos por sistema - Padrão Real Book)
+            let currentSystem = createSystem();
+            let count = 0;
+
+            measures.forEach((measureStr, index) => {
+                if (count === 4) {
+                    staff.appendChild(currentSystem);
+                    currentSystem = createSystem();
+                    count = 0;
+                }
+
+                const measureEl = document.createElement('div');
+                measureEl.className = 'measure';
+
+                // Parsing dos acordes
+                const chords = measureStr.split(/\s+/);
+                chords.forEach(c => {
+                    if(c) measureEl.appendChild(createChordHTML(c));
+                });
+                
+                // Tratar compasso vazio
+                if(chords.length === 0 || (chords.length===1 && chords[0]==='')) {
+                    // Símbolo de pausa ou espaço vazio? Vamos deixar vazio clean.
+                    measureEl.innerHTML = '&nbsp;';
+                }
+
+                currentSystem.appendChild(measureEl);
+                count++;
+            });
+
+            // Preencher linha final se incompleta
+            while(count < 4 && count > 0) {
+                const empty = document.createElement('div');
+                empty.className = 'measure';
+                empty.innerHTML = '&nbsp;';
+                currentSystem.appendChild(empty);
+                count++;
+            }
+            staff.appendChild(currentSystem);
+        }
+
+        function createSystem() {
+            const div = document.createElement('div');
+            div.className = 'system';
+            return div;
+        }
+
+        function createChordHTML(chordStr) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chord';
+
+            // Regex Ninja para separar Tônica / Sufixo / Baixo
+            // Ex: Dbmaj9/F -> Root: Db, Suffix: maj9, Bass: F
+            const regex = /^([A-G][#b]?)([^/]*)(?:\/(.*))?$/;
+            const match = chordStr.match(regex);
+
+            if (!match) {
+                wrapper.innerText = chordStr; // Fallback
+                return wrapper;
+            }
+
+            let [_, root, suffix, bass] = match;
+
+            // Formatação Real Book (Berklee Standard)
+            // m7b5 -> ø
+            // dim -> °
+            // maj7 -> Δ
+            
+            if (suffix) {
+                suffix = suffix.replace(/maj7?|M7?|Ma7?/g, 'Δ');
+                suffix = suffix.replace(/m7b5|ø/g, 'ø'); // Garante que se user digitar ø fica ø
+                suffix = suffix.replace(/dim7?|o7?/g, '°');
+                
+                // Tratamento especial para m7b5 escrito por extenso
+                if(suffix.includes('m7b5')) suffix = suffix.replace('m7b5', 'ø');
+            }
+
+            // HTML Structure
+            let html = `<span class="root">${root}</span>`;
+            
+            // O sufixo precisa ser renderizado. 
+            // Se for Δ9, o Δ é parte do simbolo principal ou sufixo? 
+            // No jazz, o sufixo sobe.
+            if (suffix) {
+                html += `<span class="suffix" style="right: auto; position: relative; top: -15px; font-size: 0.6em;">${suffix}</span>`;
+            }
+
+            if (bass) {
+                html += `<span class="bass">${bass}</span>`;
+            }
+
+            wrapper.innerHTML = html;
+            return wrapper;
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('chart-container');
+            const opt = {
+                margin:       0,
+                filename:     `${document.getElementById('inTitle').value || 'chart'}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true }, // Scale 2 deixa nitido
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            // Renderiza PDF
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // Init
+        window.onload = renderChart;
+    </script>
+</body>
+</html>
