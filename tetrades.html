@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Piano Extensões - Campo Harmônico C</title>
+    <style>
+        :root {
+            --bg: #1e1e2e;
+            --primary: #89dceb; /* Azul Ciano para diferenciar */
+            --correct: #a6e3a1;
+            --wrong: #f38ba8;
+            --white-key: #ffffff;
+            --black-key: #181825;
+            --active: #f9e2af;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; background: var(--bg); 
+            color: #cdd6f4; margin: 0; display: flex; flex-direction: column; 
+            align-items: center; min-height: 100vh;
+        }
+
+        .hud {
+            padding: 30px; text-align: center; width: 100%;
+            background: rgba(0,0,0,0.3); border-bottom: 5px solid var(--primary);
+        }
+
+        #instruction { font-size: 1rem; opacity: 0.7; text-transform: uppercase; margin-bottom: 10px;}
+        
+        #target-chord { 
+            font-size: 4rem; font-weight: 900; color: var(--primary);
+            margin: 10px 0; text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .piano-container {
+            position: relative; height: 260px; margin-top: 30px;
+            display: flex; justify-content: center; width: 100%;
+            overflow-x: auto; /* Rolagem caso a tela seja pequena */
+        }
+
+        .piano { display: flex; position: relative; padding: 0 20px; }
+
+        .key {
+            width: 45px; height: 200px; background: var(--white-key); /* Teclas um pouco mais finas */
+            border: 1px solid #ccc; border-radius: 0 0 6px 6px;
+            position: relative; z-index: 1; cursor: pointer; transition: transform 0.1s;
+            flex-shrink: 0;
+        }
+
+        .key.black {
+            width: 30px; height: 125px; background: var(--black-key);
+            margin-left: -15px; margin-right: -15px;
+            z-index: 2; border: none;
+        }
+
+        .key.active { background: var(--active) !important; }
+        .key.correct-flash { background: var(--correct) !important; }
+        .key.wrong-flash { background: var(--wrong) !important; }
+
+        .ref-mark {
+            position: absolute; bottom: 10px; left: 50%;
+            transform: translateX(-50%); color: #bbb; font-weight: bold; font-size: 0.7rem;
+        }
+
+        .stats { font-size: 1.2rem; font-weight: bold; margin-top: 15px; }
+        
+        .legend-box {
+            margin-top: 30px; text-align: center; max-width: 800px; line-height: 1.5;
+            background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px;
+            font-size: 0.9rem;
+        }
+
+        .lesson-title { color: var(--primary); font-weight: bold; display: block; margin-top: 10px; margin-bottom: 5px;}
+    </style>
+</head>
+<body>
+
+<div class="hud">
+    <div id="instruction">Toque o Acorde (5 notas):</div>
+    <div id="target-chord">--</div>
+    <div class="stats">SCORE: <span id="score">0</span></div>
+</div>
+
+<div class="piano-container">
+    <div class="piano" id="piano"></div>
+</div>
+
+<div class="legend-box">
+    <span class="lesson-title">Aula 29 - Campo Harmônico com Extensões | Adicionando a 9ª</span>
+    <p>Acordes com 9ª (Tônica + 3ª + 5ª + 7ª + 9ª)</p>
+    
+    <span class="lesson-title">Aula 31 - Campo Harmônico com Extensões | Adicionando a 11J e a 13M</span>
+    <p>Acordes com 11ª (ex: Dm11) e 13ª (ex: G13).</p>
+    
+    <small style="opacity: 0.5; display: block; margin-top: 15px;">
+        Nota: Todas as notas devem pertencer à escala de Dó Maior (Teclas brancas).<br>
+        Toque as 5 notas que formam o acorde para validar.
+    </small>
+</div>
+
+<script>
+    let audioCtx = null;
+    let score = 0;
+    let currentChord = null;
+    let selectedNotes = [];
+
+    // Mapeamento fixo do Campo Harmônico de C com extensões
+    // Notas absolutas considerando C=0, C#=1, etc.
+    const questions = [
+        // --- AULA 29: 9ªs ---
+        { label: "Cmaj9",   notes: [0, 4, 7, 11, 14] }, // C E G B D
+        { label: "Dm9",     notes: [2, 5, 9, 12, 16] }, // D F A C E
+        { label: "Em7(b9)", notes: [4, 7, 11, 14, 17] }, // E G B D F (9ª menor natural)
+        { label: "Fmaj9",   notes: [5, 9, 12, 16, 19] }, // F A C E G
+        { label: "G9",      notes: [7, 11, 14, 17, 21] }, // G B D F A
+        { label: "Am9",     notes: [9, 12, 16, 19, 23] }, // A C E G B
+        
+        // --- AULA 31: 11ª e 13ª ---
+        // Dm11 (II grau): T, b3, 5, b7, 11
+        { label: "Dm11",    notes: [2, 5, 9, 12, 19] }, // D F A C G (G é a 11ª)
+        
+        // Fmaj7(#11) (IV grau lídio): T, 3, 5, 7, #11
+        { label: "Fmaj7(#11)", notes: [5, 9, 12, 16, 23] }, // F A C E B (B é a #11)
+        
+        // G13 (V grau): T, 3, 5, b7, 13 (A 13ª de G é E)
+        // Nota: G(7) -> E agudo é 7+21 = 28.
+        { label: "G13",     notes: [7, 11, 14, 17, 28] }, // G B D F E
+        
+        // Cmaj13 (I grau): T, 3, 5, 7, 13 (A 13ª de C é A)
+        { label: "Cmaj13",  notes: [0, 4, 7, 11, 21] }  // C E G B A
+    ];
+
+    function playNote(semitones) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(261.63 * Math.pow(2, semitones / 12), audioCtx.currentTime);
+        osc.type = 'triangle';
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime); // Volume baixo para acordes densos
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+    }
+
+    function createPiano() {
+        const piano = document.getElementById('piano');
+        const pattern = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0]; 
+        
+        // Gerar 30 teclas (C0 até F2 aprox) para cobrir extensões agudas como a 13ª de G
+        for (let i = 0; i < 30; i++) {
+            const isBlack = pattern[i % 12];
+            const key = document.createElement('div');
+            key.className = `key ${isBlack ? 'black' : 'white'}`;
+            
+            const noteName = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][i % 12];
+            
+            // Marcações apenas nas notas naturais (C D E F G A B) para facilitar
+            if (!isBlack) {
+                key.innerHTML = `<span class="ref-mark">${noteName}</span>`;
+            }
+            
+            key.onmousedown = () => handleKeyPress(i, key);
+            piano.appendChild(key);
+        }
+    }
+
+    function handleKeyPress(semi, element) {
+        if (selectedNotes.includes(semi)) return;
+        playNote(semi);
+        selectedNotes.push(semi);
+        element.classList.add('active');
+        
+        // Agora valida com 5 notas (Tétrade + Extensão)
+        if (selectedNotes.length === 5) checkAnswer();
+    }
+
+    function checkAnswer() {
+        // Verifica se todas as notas selecionadas estão no acorde alvo
+        const isCorrect = currentChord.notes.every(n => selectedNotes.includes(n));
+        
+        if (isCorrect) {
+            score += 20; // Pontuação alta
+            document.querySelectorAll('.key.active').forEach(k => k.classList.add('correct-flash'));
+            setTimeout(nextQuestion, 1000);
+        } else {
+            score = Math.max(0, score - 5);
+            document.querySelectorAll('.key.active').forEach(k => {
+                k.classList.add('wrong-flash');
+                setTimeout(() => k.classList.remove('wrong-flash', 'active'), 500);
+            });
+            selectedNotes = [];
+        }
+        document.getElementById('score').innerText = score;
+    }
+
+    function nextQuestion() {
+        selectedNotes = [];
+        document.querySelectorAll('.key').forEach(k => k.classList.remove('active', 'correct-flash'));
+        
+        // Escolhe um acorde aleatório da lista fixa
+        currentChord = questions[Math.floor(Math.random() * questions.length)];
+        
+        document.getElementById('target-chord').innerText = currentChord.label;
+    }
+
+    createPiano();
+    nextQuestion();
+</script>
+
+</body>
+</html>
