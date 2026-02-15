@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Am7 Extension Master</title>
+    <style>
+        :root {
+            --bg: #11111b;
+            --primary: #89b4fa;
+            --correct: #a6e3a1;
+            --wrong: #f38ba8;
+            --white-key: #f8f9fa;
+            --black-key: #181825;
+            --extension: #fab387;
+        }
+
+        body { 
+            font-family: 'Segoe UI', sans-serif; background: var(--bg); 
+            color: #cdd6f4; margin: 0; display: flex; flex-direction: column; 
+            align-items: center; min-height: 100vh; overflow: hidden;
+        }
+
+        .hud {
+            padding: 30px; text-align: center; width: 100%;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 2px solid #313244;
+        }
+
+        #instruction { font-size: 1rem; opacity: 0.8; margin-bottom: 5px; }
+        #target-interval { 
+            font-size: 2.5rem; font-weight: 800; color: var(--primary);
+            text-shadow: 0 0 20px rgba(137, 180, 250, 0.3); margin: 10px 0;
+        }
+
+        .piano-container {
+            position: relative; height: 280px; margin-top: 40px;
+            display: flex; justify-content: center; padding-bottom: 50px;
+            width: 100%; overflow-x: auto;
+        }
+
+        .piano { display: flex; position: relative; cursor: pointer; padding: 10px; }
+
+        .key {
+            width: 55px; height: 220px; background: var(--white-key);
+            border: 1px solid #ddd; border-radius: 0 0 6px 6px;
+            position: relative; z-index: 1; transition: all 0.1s;
+            user-select: none; flex-shrink: 0;
+        }
+
+        .key.black {
+            width: 38px; height: 135px; background: var(--black-key);
+            margin-left: -19px; margin-right: -19px;
+            z-index: 2; border: none;
+        }
+
+        .key.correct-flash { background: var(--correct) !important; transform: translateY(4px); }
+        .key.wrong-flash { background: var(--wrong) !important; animation: shake 0.2s; }
+
+        .ref-mark {
+            position: absolute; bottom: 15px; left: 50%;
+            transform: translateX(-50%); color: #585b70; font-weight: 900;
+            font-size: 1rem; pointer-events: none;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(8px); }
+        }
+
+        .stats { font-size: 1.2rem; font-weight: bold; margin-top: 15px; color: #a6adc8; }
+        .highlight { color: var(--extension); }
+    </style>
+</head>
+<body>
+
+<div class="hud">
+    <div id="instruction">Encontre a nota no acorde de <b>Lá Menor (Am7)</b>:</div>
+    <div id="target-interval">Aguardando...</div>
+    <div class="stats">SCORE: <span id="score">0</span></div>
+</div>
+
+<div class="piano-container">
+    <div class="piano" id="piano"></div>
+</div>
+
+<div style="margin-top: 20px; opacity: 0.8; text-align: center; padding: 20px; line-height: 1.6;">
+    DICA: O piano começa em <b style="color:white">Lá (A)</b>.<br>
+    As extensões de Am7 no campo de C são: <span class="highlight">9ª (Si), 11ª (Ré) e 13ª (Fá)</span>.
+</div>
+
+<script>
+    let audioCtx = null;
+
+    function playNote(semitones) {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        // Frequência base: Lá 3 (A3) = 220Hz
+        const baseFreq = 220.00;
+        const frequency = baseFreq * Math.pow(2, semitones / 12);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.8);
+    }
+
+    // Intervalos focados em Am7 e suas extensões
+    const am7Intervals = [
+        { name: "Tônica (A)", semi: 0 },
+        { name: "3ª Menor (C)", semi: 3 },
+        { name: "5ª Justa (E)", semi: 7 },
+        { name: "7ª Menor (G)", semi: 10 },
+        { name: "9ª (B)", semi: 2 },
+        { name: "11ª (D)", semi: 5 },
+        { name: "13ª (F)", semi: 8 }, // A famosa 6ª/13ª que você buscou!
+        { name: "Oitava (A)", semi: 12 }
+    ];
+
+    let questionPool = []; 
+    let currentInterval = {};
+    let score = 0;
+    let canPlay = true;
+
+    function shuffle(array) {
+        return array.sort(() => Math.random() - 0.5);
+    }
+
+    function createPiano() {
+        const piano = document.getElementById('piano');
+        piano.innerHTML = '';
+        
+        // Padrão de teclas pretas começando de Lá (A)
+        // 1 = tem tecla preta depois, 0 = não tem
+        // A(1), B(0), C(1), D(1), E(0), F(1), G(1)...
+        const pattern = [1, 0, 1, 1, 0, 1, 1]; 
+        let semi = 0;
+
+        // Criar quase 2 oitavas (15 notas brancas)
+        for (let i = 0; i < 15; i++) {
+            const currentWhiteSemi = semi;
+            addKey(piano, false, semi++);
+            
+            const posInOctave = i % 7;
+            if (pattern[posInOctave] && semi < 25) {
+                addKey(piano, true, semi++);
+            }
+        }
+    }
+
+    function addKey(container, isBlack, semitone) {
+        const key = document.createElement('div');
+        key.className = `key ${isBlack ? 'black' : 'white'}`;
+        key.dataset.semi = semitone;
+        
+        // Marcar apenas os "Lá" (A) como referência
+        if (semitone === 0 || semitone === 12 || semitone === 24) {
+            key.innerHTML = '<span class="ref-mark">A</span>';
+        }
+        
+        key.onmousedown = (e) => {
+            e.preventDefault();
+            checkAnswer(semitone, key);
+        };
+        container.appendChild(key);
+    }
+
+    function nextQuestion() {
+        if (questionPool.length === 0) {
+            questionPool = shuffle([...am7Intervals]);
+        }
+
+        canPlay = true;
+        currentInterval = questionPool.pop(); 
+        document.getElementById('target-interval').innerText = currentInterval.name;
+        
+        document.querySelectorAll('.key').forEach(k => {
+            k.classList.remove('correct-flash', 'wrong-flash');
+        });
+    }
+
+    function checkAnswer(clickedSemi, element) {
+        playNote(clickedSemi);
+
+        if (!canPlay) return;
+
+        // Aceita a nota na primeira ou segunda oitava
+        if (clickedSemi % 12 === currentInterval.semi % 12) {
+            canPlay = false;
+            score += 10;
+            element.classList.add('correct-flash');
+            document.getElementById('score').innerText = score;
+            setTimeout(nextQuestion, 600);
+        } else {
+            element.classList.add('wrong-flash');
+            setTimeout(() => element.classList.remove('wrong-flash'), 300);
+            score = Math.max(0, score - 5);
+            document.getElementById('score').innerText = score;
+        }
+    }
+
+    createPiano();
+    nextQuestion();
+</script>
+
+</body>
+</html>
